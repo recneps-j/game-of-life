@@ -1,0 +1,11 @@
+[package]
+name = "glfw-template"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+glfw = "0.52.0"
+winit = "0.28.6"
+gl = "0.14.0"
