@@ -12,8 +12,8 @@ pub trait Drawable {
 }
 
 pub struct Window {
-    width: u32,
-    height: u32,
+    pub width: u32,
+    pub height: u32,
     bg_col: (f32, f32, f32, f32),
     pub glfw_window: glfw::Window,
     pub glfw_events: Receiver<(f64, glfw::WindowEvent)>,
@@ -55,11 +55,6 @@ impl Window {
         };
 
         Some(w)
-    }
-
-    pub unsafe fn draw(&mut self) {
-        gl::ClearColor(self.bg_col.0, self.bg_col.1, self.bg_col.2, self.bg_col.3);
-        gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
     }
 
     pub fn run_event_loop(&mut self, ctx: &mut glfw::Glfw) {

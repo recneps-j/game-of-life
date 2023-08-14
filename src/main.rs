@@ -1,12 +1,14 @@
 extern crate gl;
 extern crate glfw;
+extern crate nalgebra_glm as glm;
 
 mod renderer;
 mod test;
 
 use glfw::Context;
 use renderer::renderer::*;
-use std::ffi::{CStr, CString};
+use std::ffi::CString;
+use std::fs;
 use test::Drawable;
 use test::Window;
 
@@ -16,24 +18,27 @@ fn error_cb(err: glfw::Error, msg: String, _: &()) {
 
 struct Pyramid {
     program: u32,
-    m_transform: Vec<f32>,
+    width: u32,
+    height: u32,
+    m_projection: glm::Mat4,
+    m_view: glm::Mat4,
+    m_model: glm::Mat4,
 }
 
 impl Drawable for Pyramid {
     fn draw(&mut self, timestamp: std::time::Duration) {
         unsafe {
+            let mvp = self.m_projection * self.m_view * self.m_model;
             let transform_uni_name = CString::new("u_transform").unwrap();
+            gl::Enable(gl::DEPTH_TEST);
+            gl::DepthFunc(gl::LESS);
             gl::UniformMatrix4fv(
                 gl::GetUniformLocation(self.program, transform_uni_name.as_ptr()),
                 1,
                 gl::FALSE,
-                self.m_transform.as_ptr() as *const gl::types::GLfloat,
+                mvp.as_ptr() as *const gl::types::GLfloat,
             );
-            gl::DrawArrays(
-                gl::TRIANGLES, // mode
-                0,             // starting index in the enabled arrays
-                5,             // number of indices to be rendered
-            );
+            gl::DrawElements(gl::TRIANGLE_STRIP, 18, gl::UNSIGNED_BYTE, std::ptr::null());
         }
     }
 }
@@ -51,40 +56,22 @@ fn main() {
     gl::load_with(|s| glfw.get_proc_address_raw(s));
 
     window.glfw_window.set_key_polling(true);
-    window.set_key_event_callback(glfw::Key::Left, |Key, Code, Action, Modifier| {
-        println!("Got to my custom callback");
+    window.set_key_event_callback(glfw::Key::Left, |key, code, action, modifiers| {
+        
     });
 
     window.set_bg_col((0.2, 0.2, 0.2, 1.0));
 
-    let vtx = String::from(
-"#version 330 core\n
-\n
-layout (location = 0) in vec3 Position;\n
-out vec4 v_colour;\n
-\n
-uniform mat4 u_transform;\n
-\n
-void main()\n
-{\n
-    vec4 fg_col = vec4(1.0f, 0.5f, 0.2f, 1.0f);\n
-    vec4 bg_col = vec4(0.4f, 0.2f, 0.1f, 1.0f);\n
-    v_colour = mix(fg_col, bg_col, Position.z * 2.0);\n
-    gl_Position = u_transform * vec4(Position, 1.0);\n
-}\n",
-    );
-    let frag = String::from(
-"#version 330 core\n
-\n
-out vec4 Color;\n
-in vec4 v_colour;\n
-\n
-void main()\n
-{\n
-Color = v_colour;\n
-}",
-    );
+    let vtx_path = "shaders/pyramid.vert";
+    let vtx = fs::read_to_string(vtx_path)
+        .expect(format!("Could not read vertex src from {}", vtx_path).as_str());
+
+    let frag_path = "shaders/pyramid.frag";
+    let frag = fs::read_to_string(frag_path)
+        .expect(format!("Could not read vertex src frag {}", frag_path).as_str());
+
     let prog = unsafe { Renderer::compile_shader_from_src(&vtx, &frag).unwrap() };
+
     unsafe {
         gl::UseProgram(prog);
 
@@ -94,14 +81,22 @@ Color = v_colour;\n
 
         let mut buffers: [gl::types::GLuint; 2] = [0, 0];
         gl::GenBuffers(2, buffers.as_mut_ptr());
+        
+        let indices: Vec<u8> = vec![0, 1, 2, 2, 3, 1, 0, 1, 4, 1, 2, 4, 2, 3, 4, 3, 0, 4];
 
-        let vertices: Vec<f32> = vec![-0.5, -0.5, 0.5,
-                                       0.5, -0.5, 0.5,
-                                      -0.5, -0.5,-0.5,
-                                       0.5, -0.5,-0.5,
-                                       0.0,  0.5, 0.0];
+        gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, buffers[0]);
+        gl::BufferData(
+            gl::ELEMENT_ARRAY_BUFFER,
+            (indices.len() * std::mem::size_of::<u8>()) as gl::types::GLsizeiptr,
+            indices.as_ptr() as *const gl::types::GLvoid,
+            gl::STATIC_DRAW,
+        );
 
-        gl::BindBuffer(gl::ARRAY_BUFFER, buffers[0]);
+        let vertices: Vec<f32> = vec![
+            -0.5, -0.5, 0.5, 0.5, -0.5, 0.5, -0.5, -0.5, -0.5, 0.5, -0.5, -0.5, 0.0, 0.5, 0.0,
+        ];
+
+        gl::BindBuffer(gl::ARRAY_BUFFER, buffers[1]);
         gl::BufferData(
             gl::ARRAY_BUFFER,
             (vertices.len() * std::mem::size_of::<f32>()) as gl::types::GLsizeiptr,
@@ -109,23 +104,38 @@ Color = v_colour;\n
             gl::STATIC_DRAW,
         );
 
-        gl::EnableVertexAttribArray(0); // this is "layout (location = 0)" in vertex shader
+        gl::EnableVertexAttribArray(0);
         gl::VertexAttribPointer(
-            0,         // index of the generic vertex attribute ("layout (location = 0)")
-            3,         // the number of components per generic vertex attribute
-            gl::FLOAT, // data type
-            gl::FALSE, // normalized (int-to-float conversion)
-            (3 * std::mem::size_of::<f32>()) as gl::types::GLint, // stride (byte offset between consecutive attributes)
-            std::ptr::null(),                                     // offset of the first component
+            0,
+            3,
+            gl::FLOAT,
+            gl::FALSE,
+            (3 * std::mem::size_of::<f32>()) as gl::types::GLint,
+            std::ptr::null(),
         );
     }
 
-    let m_transform: Vec<f32> = vec![
+    let m_projection: glm::Mat4 = glm::perspective(
+        glm::pi::<f32>() / 2.0,
+        window.width as f32 / window.height as f32,
+        0.1,
+        100.0,
+    );
+    let m_view: glm::Mat4 = glm::look_at(
+        &glm::vec3(3.0, 2.0, 2.0), // Camera is at (4,3,3), in World Space
+        &glm::vec3(0.0, 0.0, 0.0), // and looks at the origin
+        &glm::vec3(0.0, 1.0, 0.0), // Head is up (set to 0,-1,0 to look upside-down)
+    );
+    let m_model = glm::mat4(
         1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0,
-    ];
+    );
     let pyramid = Box::new(Pyramid {
         program: prog,
-        m_transform,
+        m_projection,
+        m_view,
+        m_model,
+        width: window.width,
+        height: window.height,
     });
     window.set_draw_object(pyramid);
 

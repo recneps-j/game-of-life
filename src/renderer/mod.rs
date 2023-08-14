@@ -1,20 +1,20 @@
 extern crate gl;
 
 pub mod renderer {
-    use std::ffi::{CStr, CString};
+    use std::{ffi::CString, collections::HashMap, error::Error};
 
     pub struct Renderer {
-        shader_programs: Vec<(String, u32)>,
+        shader_programs: HashMap<String, u32>,
     }
 
     impl Renderer {
         pub fn new() -> Self {
             Renderer {
-                shader_programs: Vec::new(),
+                shader_programs: HashMap::new(),
             }
         }
 
-        fn add_shader_program(
+        pub fn add_shader_program(
             &mut self,
             program_name: &String,
             shader_handle: u32,
@@ -26,8 +26,12 @@ pub mod renderer {
             }
 
             self.shader_programs
-                .push((program_name.clone(), shader_handle));
+                .insert(program_name.clone(), shader_handle);
             Ok(())
+        }
+
+        pub fn get_shader_program(&mut self, program_name: &String) -> Option<&u32> {
+            self.shader_programs.get(program_name)
         }
 
         pub unsafe fn compile_shader_from_src(
