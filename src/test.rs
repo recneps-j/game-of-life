@@ -23,6 +23,10 @@ pub struct Window {
     draw_object: Option<Box<dyn Drawable>>,
     key_event_callbacks:
         HashMap<glfw::Key, fn(glfw::Key, glfw::Scancode, glfw::Action, glfw::Modifiers)>,
+    mouse_button_callbacks: HashMap<
+        glfw::MouseButton,
+        Box<dyn FnMut(glfw::MouseButton, glfw::Action, glfw::Modifiers)>,
+    >,
 }
 
 impl Window {
@@ -52,6 +56,7 @@ impl Window {
             current_ts: Duration::new(0, 0),
             draw_object: None,
             key_event_callbacks: HashMap::new(),
+            mouse_button_callbacks: HashMap::new(),
         };
 
         Some(w)
@@ -90,6 +95,12 @@ impl Window {
                             None => {}
                         }
                     }
+                    glfw::WindowEvent::MouseButton(mouse_button, action, modifiers) => {
+                        match self.mouse_button_callbacks.get_mut(&mouse_button) {
+                            Some(f) => f(mouse_button, action, modifiers),
+                            None => {}
+                        }
+                    }
                     _ => {}
                 }
             }
@@ -110,5 +121,13 @@ impl Window {
         callback: fn(glfw::Key, glfw::Scancode, glfw::Action, glfw::Modifiers),
     ) {
         self.key_event_callbacks.insert(event_type, callback);
+    }
+
+    pub fn set_mouse_button_callback(
+        &mut self,
+        event_type: glfw::MouseButton,
+        callback: Box<dyn FnMut(glfw::MouseButton, glfw::Action, glfw::Modifiers)>,
+    ) {
+        self.mouse_button_callbacks.insert(event_type, callback);
     }
 }

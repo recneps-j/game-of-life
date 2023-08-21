@@ -9,11 +9,17 @@ use glfw::Context;
 use renderer::renderer::*;
 use std::ffi::CString;
 use std::fs;
+use std::ops::Mul;
+use std::sync::mpsc::{channel, Receiver, Sender};
 use test::Drawable;
 use test::Window;
 
 fn error_cb(err: glfw::Error, msg: String, _: &()) {
     println!("GLFW Error: {}, {}", err.to_string(), msg);
+}
+
+enum ShaderCommand {
+    Zoom(f32),
 }
 
 struct Pyramid {
@@ -23,11 +29,39 @@ struct Pyramid {
     m_projection: glm::Mat4,
     m_view: glm::Mat4,
     m_model: glm::Mat4,
+    command_recv: Receiver<ShaderCommand>,
 }
 
 impl Drawable for Pyramid {
     fn draw(&mut self, timestamp: std::time::Duration) {
         unsafe {
+            if let Ok(cmd) = self.command_recv.try_recv() {
+                match cmd {
+                    ShaderCommand::Zoom(amount) => {
+                        let scale_mat = glm::mat4(
+                            1.0 + amount,
+                            0.0,
+                            0.0,
+                            0.0,
+                            0.0,
+                            1.0 + amount,
+                            0.0,
+                            0.0,
+                            0.0,
+                            0.0,
+                            1.0 + amount,
+                            0.0,
+                            0.0,
+                            0.0,
+                            0.0,
+                            0.0,
+                        );
+
+                        self.m_view *= scale_mat;
+                    }
+                    _ => {}
+                }
+            }
             let mvp = self.m_projection * self.m_view * self.m_model;
             let transform_uni_name = CString::new("u_transform").unwrap();
             gl::Enable(gl::DEPTH_TEST);
@@ -56,9 +90,7 @@ fn main() {
     gl::load_with(|s| glfw.get_proc_address_raw(s));
 
     window.glfw_window.set_key_polling(true);
-    window.set_key_event_callback(glfw::Key::Left, |key, code, action, modifiers| {
-        
-    });
+    window.set_key_event_callback(glfw::Key::Left, |key, code, action, modifiers| {});
 
     window.set_bg_col((0.2, 0.2, 0.2, 1.0));
 
@@ -81,7 +113,7 @@ fn main() {
 
         let mut buffers: [gl::types::GLuint; 2] = [0, 0];
         gl::GenBuffers(2, buffers.as_mut_ptr());
-        
+
         let indices: Vec<u8> = vec![0, 1, 2, 2, 3, 1, 0, 1, 4, 1, 2, 4, 2, 3, 4, 3, 0, 4];
 
         gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, buffers[0]);
@@ -115,6 +147,14 @@ fn main() {
         );
     }
 
+    let (sender, receiver) = channel::<ShaderCommand>();
+    window.set_mouse_button_callback(
+        glfw::MouseButton::Button1,
+        Box::new(move |mouse_button, action, modifiers| {
+            println!("Mouse button 1 clicked");
+            sender.send(ShaderCommand::Zoom(0.1)).unwrap();
+        }),
+    );
     let m_projection: glm::Mat4 = glm::perspective(
         glm::pi::<f32>() / 2.0,
         window.width as f32 / window.height as f32,
@@ -122,7 +162,7 @@ fn main() {
         100.0,
     );
     let m_view: glm::Mat4 = glm::look_at(
-        &glm::vec3(3.0, 2.0, 2.0), // Camera is at (4,3,3), in World Space
+        &glm::vec3(3.0, 2.0, 2.0), // Camera is at (3, 2, 2), in World Space
         &glm::vec3(0.0, 0.0, 0.0), // and looks at the origin
         &glm::vec3(0.0, 1.0, 0.0), // Head is up (set to 0,-1,0 to look upside-down)
     );
@@ -136,6 +176,7 @@ fn main() {
         m_model,
         width: window.width,
         height: window.height,
+        command_recv: receiver,
     });
     window.set_draw_object(pyramid);
 
