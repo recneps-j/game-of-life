@@ -27,6 +27,7 @@ pub struct Window {
         glfw::MouseButton,
         Box<dyn FnMut(glfw::MouseButton, glfw::Action, glfw::Modifiers)>,
     >,
+    scroll_callback: Option<Box<dyn FnMut(f64, f64)>>,
 }
 
 impl Window {
@@ -57,6 +58,7 @@ impl Window {
             draw_object: None,
             key_event_callbacks: HashMap::new(),
             mouse_button_callbacks: HashMap::new(),
+            scroll_callback: None,
         };
 
         Some(w)
@@ -101,6 +103,12 @@ impl Window {
                             None => {}
                         }
                     }
+                    glfw::WindowEvent::Scroll(xpos, ypos) => {
+                        match &mut self.scroll_callback {
+                            Some(f) => f(xpos, ypos),
+                            None => {}
+                        }
+                    }
                     _ => {}
                 }
             }
@@ -129,5 +137,9 @@ impl Window {
         callback: Box<dyn FnMut(glfw::MouseButton, glfw::Action, glfw::Modifiers)>,
     ) {
         self.mouse_button_callbacks.insert(event_type, callback);
+    }
+
+    pub fn set_scroll_callback(&mut self, callback: Box<dyn FnMut(f64, f64)>) {
+        self.scroll_callback = Some(callback);
     }
 }

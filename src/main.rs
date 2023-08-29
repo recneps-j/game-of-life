@@ -7,6 +7,7 @@ mod test;
 
 use glfw::Context;
 use renderer::renderer::*;
+use std::f32::consts::PI;
 use std::ffi::CString;
 use std::fs;
 use std::ops::Mul;
@@ -26,6 +27,7 @@ struct Pyramid {
     program: u32,
     width: u32,
     height: u32,
+    angle: f32,
     m_projection: glm::Mat4,
     m_view: glm::Mat4,
     m_model: glm::Mat4,
@@ -39,22 +41,22 @@ impl Drawable for Pyramid {
                 match cmd {
                     ShaderCommand::Zoom(amount) => {
                         let scale_mat = glm::mat4(
-                            1.0 + amount,
+                            (1.0 + amount),
                             0.0,
                             0.0,
                             0.0,
                             0.0,
-                            1.0 + amount,
+                            (1.0 + amount),
                             0.0,
                             0.0,
                             0.0,
                             0.0,
-                            1.0 + amount,
+                            (1.0 + amount),
                             0.0,
                             0.0,
                             0.0,
                             0.0,
-                            0.0,
+                            1.0,
                         );
 
                         self.m_view *= scale_mat;
@@ -62,6 +64,28 @@ impl Drawable for Pyramid {
                     _ => {}
                 }
             }
+
+            let rotation_mat = glm::mat4(
+                self.angle.cos(),
+                0.0,
+                self.angle.sin(),
+                0.0,
+                0.0,
+                1.0,
+                0.0,
+                0.0,
+                -self.angle.sin(),
+                0.0,
+                self.angle.cos(),
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                1.0,
+            );
+            self.m_view *= rotation_mat;
+            self.angle += 0.00001;
+
             let mvp = self.m_projection * self.m_view * self.m_model;
             let transform_uni_name = CString::new("u_transform").unwrap();
             gl::Enable(gl::DEPTH_TEST);
@@ -90,6 +114,8 @@ fn main() {
     gl::load_with(|s| glfw.get_proc_address_raw(s));
 
     window.glfw_window.set_key_polling(true);
+    window.glfw_window.set_mouse_button_polling(true);
+    window.glfw_window.set_scroll_polling(true);
     window.set_key_event_callback(glfw::Key::Left, |key, code, action, modifiers| {});
 
     window.set_bg_col((0.2, 0.2, 0.2, 1.0));
@@ -148,11 +174,9 @@ fn main() {
     }
 
     let (sender, receiver) = channel::<ShaderCommand>();
-    window.set_mouse_button_callback(
-        glfw::MouseButton::Button1,
-        Box::new(move |mouse_button, action, modifiers| {
-            println!("Mouse button 1 clicked");
-            sender.send(ShaderCommand::Zoom(0.1)).unwrap();
+    window.set_scroll_callback(
+        Box::new(move |xpos, ypos| {
+                sender.send(ShaderCommand::Zoom(ypos as f32 * 0.05)).unwrap();
         }),
     );
     let m_projection: glm::Mat4 = glm::perspective(
@@ -174,6 +198,7 @@ fn main() {
         m_projection,
         m_view,
         m_model,
+        angle: 0.0,
         width: window.width,
         height: window.height,
         command_recv: receiver,
