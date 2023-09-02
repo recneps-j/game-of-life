@@ -7,6 +7,24 @@
         {
             "type": "lldb",
             "request": "launch",
+            "name": "Debug executable 'ui'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=ui",
+                    "--package=glfw-template"
+                ],
+                "filter": {
+                    "name": "ui",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
             "name": "Debug executable 'glfw-template'",
             "cargo": {
                 "args": [

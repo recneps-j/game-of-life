@@ -5,8 +5,15 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[[bin]]
+name = "ui"
+test = false
+bench = false
+
 [dependencies]
 glfw = "0.52.0"
 winit = "0.28.6"
 gl = "0.14.0"
 nalgebra-glm = "0.18.0"
+fltk = { version = "1.4.10", features = ["enable-glwindow"]}
+glow = "*"
