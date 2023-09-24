@@ -7,15 +7,15 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug executable 'ui'",
+            "name": "Debug executable 'gol'",
             "cargo": {
                 "args": [
                     "build",
-                    "--bin=ui",
-                    "--package=glfw-template"
+                    "--bin=gol",
+                    "--package=engine2d"
                 ],
                 "filter": {
-                    "name": "ui",
+                    "name": "gol",
                     "kind": "bin"
                 }
             },

@@ -11,6 +11,25 @@ pub trait Drawable {
     fn draw(&mut self, timestamp: Duration);
 }
 
+pub struct RenderCtx {
+    glfw_ctx: glfw::Glfw,
+}
+
+impl RenderCtx {
+    pub fn create() -> Self {
+        let mut glfw_ctx = glfw::init(glfw::FAIL_ON_ERRORS).unwrap();
+        glfw_ctx.set_error_callback(Some(glfw::Callback {
+            f: Self::error_cb,
+            data: (),
+        }));
+        return RenderCtx { glfw_ctx };
+    }
+
+    fn error_cb(err: glfw::Error, msg: String, _: &()) {
+        println!("GLFW Error: {}, {}", err.to_string(), msg);
+    }
+}
+
 pub struct Window {
     pub width: u32,
     pub height: u32,
@@ -31,12 +50,12 @@ pub struct Window {
 }
 
 impl Window {
-    pub fn new(ctx: &mut glfw::Glfw, width: u32, height: u32) -> Option<Self> {
-        ctx.window_hint(glfw::WindowHint::ClientApi(glfw::ClientApiHint::OpenGl));
-        ctx.window_hint(glfw::WindowHint::TransparentFramebuffer(true));
-        ctx.window_hint(glfw::WindowHint::ContextVersion(3, 2));
+    pub fn new(ctx: &mut RenderCtx, width: u32, height: u32) -> Option<Self> {
+        ctx.glfw_ctx.window_hint(glfw::WindowHint::ClientApi(glfw::ClientApiHint::OpenGl));
+        ctx.glfw_ctx.window_hint(glfw::WindowHint::TransparentFramebuffer(true));
+        ctx.glfw_ctx.window_hint(glfw::WindowHint::ContextVersion(3, 2));
         // Create a windowed mode window and its OpenGL context
-        let result = ctx.create_window(width, height, "Window", glfw::WindowMode::Windowed);
+        let result = ctx.glfw_ctx.create_window(width, height, "Window", glfw::WindowMode::Windowed);
         match result {
             None => {
                 println!("Failed to create GLFW window.");
@@ -46,9 +65,9 @@ impl Window {
         }
 
         let (window, events) = result.unwrap();
-        ctx.make_context_current(Some(&window));
-        ctx.set_swap_interval(glfw::SwapInterval::Sync(1));
-        let w = Window {
+        ctx.glfw_ctx.make_context_current(Some(&window));
+        ctx.glfw_ctx.set_swap_interval(glfw::SwapInterval::Sync(1));
+        let mut w = Window {
             width,
             height,
             bg_col: (0.0, 0.0, 0.0, 0.0),
@@ -61,13 +80,16 @@ impl Window {
             scroll_callback: None,
         };
 
+        w.glfw_window.make_current();
+        gl::load_with(|s| ctx.glfw_ctx.get_proc_address_raw(s));
+
         Some(w)
     }
 
-    pub fn run_event_loop(&mut self, ctx: &mut glfw::Glfw) {
+    pub fn run_event_loop(&mut self, ctx: &mut RenderCtx) {
         // Loop until the user closes the window
         while !self.glfw_window.should_close() {
-            self.current_ts += Duration::from_nanos(16667);
+            self.current_ts += Duration::from_nanos(16666667);
 
             unsafe {
                 gl::ClearColor(self.bg_col.0, self.bg_col.1, self.bg_col.2, self.bg_col.3);
@@ -83,7 +105,7 @@ impl Window {
             self.glfw_window.swap_buffers();
 
             // Poll for and process events
-            ctx.poll_events();
+            ctx.glfw_ctx.poll_events();
 
             for (_, event) in glfw::flush_messages(&self.glfw_events) {
                 println!("{:?}", event);
@@ -103,12 +125,10 @@ impl Window {
                             None => {}
                         }
                     }
-                    glfw::WindowEvent::Scroll(xpos, ypos) => {
-                        match &mut self.scroll_callback {
-                            Some(f) => f(xpos, ypos),
-                            None => {}
-                        }
-                    }
+                    glfw::WindowEvent::Scroll(xpos, ypos) => match &mut self.scroll_callback {
+                        Some(f) => f(xpos, ypos),
+                        None => {}
+                    },
                     _ => {}
                 }
             }
